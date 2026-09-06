@@ -15,19 +15,16 @@
                 "--loglevel",
                 "silent"
             ],
-            "isBackground": true,
+            "isBackground": false,
             "presentation": {
                 "reveal": "silent"
             },
-            "problemMatcher": "$tsc-watch"
+            "problemMatcher": "$tsc"
         },
         {
             "type": "npm",
             "script": "lint",
-            "problemMatcher": {
-                "base": "$tslint5",
-                "fileLocation": "absolute"
-            }
+            "problemMatcher": []
         }
     ]
 }

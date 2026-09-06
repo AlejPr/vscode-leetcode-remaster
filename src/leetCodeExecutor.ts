@@ -13,6 +13,7 @@ import { executeCommand, executeCommandWithProgress } from "./utils/cpUtils";
 import { DialogOptions, openUrl } from "./utils/uiUtils";
 import * as wsl from "./utils/wslUtils";
 import { toWslPath, useWsl } from "./utils/wslUtils";
+import { testCommandResult } from "./utils/testCommandResult";
 
 class LeetCodeExecutor implements Disposable {
     private leetCodeRootPath: string;
@@ -173,11 +174,28 @@ class LeetCodeExecutor implements Disposable {
         }
     }
 
+    public async getTestCases(problemId: string, needTranslation: boolean): Promise<string> {
+        const args: string[] = [await this.getLeetCodeBinaryPath(), "cases", problemId];
+        if (!needTranslation) {
+            args.push("-T");
+        }
+        return this.executeCommandWithProgressEx("Fetching example test cases...", this.nodeExecutable, args);
+    }
+
+    public async testEditedCases(filePath: string, input: string): Promise<string> {
+        const node: string = this.nodeExecutable.replace(/^"|"$/g, "");
+        const binary: string = (await this.getLeetCodeBinaryPath()).replace(/^"|"$/g, "");
+        const solution: string = wsl.useWsl() ? await wsl.toWslPath(filePath) : filePath;
+        const args: string[] = [binary, "test", solution, "--webview", "-i"];
+        return testCommandResult(executeCommandWithProgress("Running edited test cases...", wsl.useWsl() ? "wsl" : node,
+            wsl.useWsl() ? [node].concat(args) : args, { shell: false }, input));
+    }
+
     public async testSolution(filePath: string, testString?: string): Promise<string> {
         if (testString) {
-            return await this.executeCommandWithProgressEx("Submitting to LeetCode...", this.nodeExecutable, [await this.getLeetCodeBinaryPath(), "test", `"${filePath}"`, "-t", `${testString}`]);
+            return await testCommandResult(this.executeCommandWithProgressEx("Submitting to LeetCode...", this.nodeExecutable, [await this.getLeetCodeBinaryPath(), "test", "--webview", `"${filePath}"`, "-t", `${testString}`]));
         }
-        return await this.executeCommandWithProgressEx("Submitting to LeetCode...", this.nodeExecutable, [await this.getLeetCodeBinaryPath(), "test", `"${filePath}"`]);
+        return await testCommandResult(this.executeCommandWithProgressEx("Submitting to LeetCode...", this.nodeExecutable, [await this.getLeetCodeBinaryPath(), "test", "--webview", `"${filePath}"`]));
     }
 
     public async switchEndpoint(endpoint: string): Promise<string> {

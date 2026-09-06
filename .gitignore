@@ -34,6 +34,10 @@ build/Release
 
 # Dependency directories
 node_modules/
+# Track only our customized CLI; nested node_modules remain ignored.
+!/node_modules/
+/node_modules/*
+!/node_modules/vsc-leetcode-cli/
 jspm_packages/
 
 # Typescript v1 declaration files
@@ -56,6 +60,19 @@ typings/
 
 # dotenv environment variables file
 .env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
+# Local authentication/configuration and copied LeetCode CLI data
+.npmrc
+.lc/
+.leetcode/
+*.pem
+*.key
+*.p12
+*.pfx
 
 # Output
 out

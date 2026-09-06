@@ -83,7 +83,7 @@ export async function testSolution(uri?: vscode.Uri): Promise<void> {
         }
         leetCodeSubmissionProvider.show(result);
     } catch (error) {
-        await promptForOpenOutputChannel("Failed to test the solution. Please open the output channel for details.", DialogType.error);
+        await promptForOpenOutputChannel(`${String(error)} Please open the output channel for details.`, DialogType.error);
     }
 }
 

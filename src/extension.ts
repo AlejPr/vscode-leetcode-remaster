@@ -23,6 +23,7 @@ import { DialogType, promptForOpenOutputChannel } from "./utils/uiUtils";
 import { leetCodePreviewProvider } from "./webview/leetCodePreviewProvider";
 import { leetCodeSolutionProvider } from "./webview/leetCodeSolutionProvider";
 import { leetCodeSubmissionProvider } from "./webview/leetCodeSubmissionProvider";
+import { leetCodeTestCasesProvider } from "./webview/leetCodeTestCasesProvider";
 import { markdownEngine } from "./webview/markdownEngine";
 import TrackData from "./utils/trackingUtils";
 import { globalState } from "./globalState";
@@ -40,11 +41,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         leetCodeTreeDataProvider.initialize(context);
         globalState.initialize(context);
+        leetCodeTestCasesProvider.initialize(context);
 
         context.subscriptions.push(
             leetCodeStatusBarController,
             leetCodeChannel,
             leetCodePreviewProvider,
+            leetCodeTestCasesProvider,
             leetCodeSubmissionProvider,
             leetCodeSolutionProvider,
             leetCodeExecutor,
@@ -104,7 +107,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await leetCodeManager.getLoginStatus();
         vscode.window.registerUriHandler({ handleUri: leetCodeManager.handleUriSignIn });
     } catch (error) {
-        leetCodeChannel.appendLine(error.toString());
+        leetCodeChannel.appendLine(String(error));
         promptForOpenOutputChannel("Extension initialization failed. Please open output channel for details.", DialogType.error);
     }
 }

@@ -3,7 +3,7 @@
 
 import * as _ from "lodash";
 import * as path from "path";
-import * as unescapeJS from "unescape-js";
+import unescapeJS = require("unescape-js");
 import * as vscode from "vscode";
 import { explorerNodeManager } from "../explorer/explorerNodeManager";
 import { LeetCodeNode } from "../explorer/LeetCodeNode";
@@ -27,6 +27,7 @@ import { getActiveFilePath, selectWorkspaceFolder } from "../utils/workspaceUtil
 import * as wsl from "../utils/wslUtils";
 import { leetCodePreviewProvider } from "../webview/leetCodePreviewProvider";
 import { leetCodeSolutionProvider } from "../webview/leetCodeSolutionProvider";
+import { leetCodeTestCasesProvider } from "../webview/leetCodeTestCasesProvider";
 import * as list from "./list";
 import { getLeetCodeEndpoint } from "./plugin";
 import { globalState } from "../globalState";
@@ -61,7 +62,7 @@ export async function previewProblem(input: IProblem | vscode.Uri, isSideMode: b
 
     const needTranslation: boolean = settingUtils.shouldUseEndpointTranslation();
     const descString: string = await leetCodeExecutor.getDescription(node.id, needTranslation);
-    leetCodePreviewProvider.show(descString, node, isSideMode);
+    await leetCodePreviewProvider.show(descString, node, isSideMode);
 }
 
 export async function pickOne(): Promise<void> {
@@ -119,7 +120,7 @@ export async function showSolution(input: LeetCodeNode | vscode.Uri): Promise<vo
         const solution: string = await leetCodeExecutor.showSolution(problemInput, language, needTranslation);
         leetCodeSolutionProvider.show(unescapeJS(solution));
     } catch (error) {
-        leetCodeChannel.appendLine(error.toString());
+        leetCodeChannel.appendLine(String(error));
         await promptForOpenOutputChannel("Failed to fetch the top voted solution. Please open the output channel for details.", DialogType.error);
     }
 }
@@ -204,7 +205,7 @@ async function showProblemInternal(node: IProblem): Promise<void> {
             ),
         ];
         if (descriptionConfig.showInWebview) {
-            promises.push(showDescriptionView(node));
+            promises.push(showDescriptionView(node, finalPath));
         }
 
         await Promise.all(promises);
@@ -213,8 +214,11 @@ async function showProblemInternal(node: IProblem): Promise<void> {
     }
 }
 
-async function showDescriptionView(node: IProblem): Promise<void> {
-    return previewProblem(node, vscode.workspace.getConfiguration("leetcode").get<boolean>("enableSideMode", true));
+async function showDescriptionView(node: IProblem, filePath: string): Promise<void> {
+    const isSideMode: boolean = vscode.workspace.getConfiguration("leetcode").get<boolean>("enableSideMode", true);
+    await previewProblem(node, isSideMode);
+    await leetCodeTestCasesProvider.show(isSideMode, node, filePath);
+    leetCodePreviewProvider.reveal();
 }
 async function parseProblemsToPicks(p: Promise<IProblem[]>): Promise<Array<IQuickItemEx<IProblem>>> {
     return new Promise(async (resolve: (res: Array<IQuickItemEx<IProblem>>) => void): Promise<void> => {

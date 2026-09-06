@@ -1,0 +1,23 @@
+// Run with node test/cli-http-errors.js. No network or authentication required.
+'use strict';
+const assert = require('assert');
+const fs = require('fs');
+const vm = require('vm');
+const source = fs.readFileSync(require.resolve('../node_modules/vsc-leetcode-cli/lib/plugins/leetcode.js'), 'utf8');
+const expired = {msg: 'session expired', statusCode: -1};
+const context = {plugin: {}, session: {errors: {EXPIRED: expired}}, log: {debug() {}}};
+vm.runInNewContext(source.slice(source.indexOf('plugin.checkError ='), source.indexOf('plugin.init =')), context);
+const check = context.plugin.checkError;
+assert.strictEqual(check(null, {statusCode: 200}, 200), null);
+assert.strictEqual(check(null, {statusCode: 401}, 200), expired);
+const forbidden = check(null, {statusCode: 403, headers: {'content-type': 'application/json'}}, 200);
+assert.strictEqual(forbidden.statusCode, 403);
+assert.notStrictEqual(forbidden, expired);
+assert(forbidden.msg.includes('HTTP 403 Forbidden'));
+assert(forbidden.msg.includes('application/json'));
+const challenged = check(null, {statusCode: 403, headers: {'content-type': 'text/html', 'cf-mitigated': 'challenge'}}, 200);
+assert(challenged.msg.includes('browser challenge'));
+assert.strictEqual(check(null, {statusCode: 429}, 200).statusCode, 429);
+const transportError = new Error('connection reset');
+assert.strictEqual(check(transportError, undefined, 200), transportError);
+console.log('Passed CLI HTTP error checks: forbidden requests remain distinct from authentication and judge errors.');

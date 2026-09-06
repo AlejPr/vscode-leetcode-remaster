@@ -13,15 +13,21 @@ class LeetCodePreviewProvider extends LeetCodeWebview {
     private description: IDescription;
     private sideMode: boolean = false;
 
+    public reveal(): void {
+        if (this.panel) {
+            this.panel.reveal(this.getWebviewOption().viewColumn, true);
+        }
+    }
+
     public isSideMode(): boolean {
         return this.sideMode;
     }
 
-    public show(descString: string, node: IProblem, isSideMode: boolean = false): void {
+    public async show(descString: string, node: IProblem, isSideMode: boolean = false): Promise<void> {
         this.description = this.parseDescription(descString, node);
         this.node = node;
         this.sideMode = isSideMode;
-        this.showWebviewInternal();
+        await this.showWebviewInternal();
     }
 
     protected getWebviewOption(): ILeetCodeWebviewOption {

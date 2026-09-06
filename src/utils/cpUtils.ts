@@ -9,7 +9,7 @@ interface IExecError extends Error {
     result?: string;
 }
 
-export async function executeCommand(command: string, args: string[], options: cp.SpawnOptions = { shell: true }): Promise<string> {
+export async function executeCommand(command: string, args: string[], options: cp.SpawnOptions = { shell: true }, input?: string): Promise<string> {
     return new Promise((resolve: (res: string) => void, reject: (e: Error) => void): void => {
         let result: string = "";
 
@@ -24,9 +24,13 @@ export async function executeCommand(command: string, args: string[], options: c
         childProc.stderr?.on("data", (data: string | Buffer) => leetCodeChannel.append(data.toString()));
 
         childProc.on("error", reject);
+        if (input !== undefined && childProc.stdin) {
+            childProc.stdin.on("error", reject);
+            childProc.stdin.end(input);
+        }
 
         childProc.on("close", (code: number) => {
-            if (code !== 0 || result.indexOf("ERROR") > -1) {
+            if (code !== 0 || /(?:^|\r?\n)\[ERROR\](?: |$)/.test(result)) {
                 const error: IExecError = new Error(`Command "${command} ${args.toString()}" failed with exit code "${code}".`);
                 if (result) {
                     error.result = result; // leetcode-cli may print useful content by exit with error code
@@ -39,13 +43,13 @@ export async function executeCommand(command: string, args: string[], options: c
     });
 }
 
-export async function executeCommandWithProgress(message: string, command: string, args: string[], options: cp.SpawnOptions = { shell: true }): Promise<string> {
+export async function executeCommandWithProgress(message: string, command: string, args: string[], options: cp.SpawnOptions = { shell: true }, input?: string): Promise<string> {
     let result: string = "";
     await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification }, async (p: vscode.Progress<{}>) => {
         return new Promise<void>(async (resolve: () => void, reject: (e: Error) => void): Promise<void> => {
             p.report({ message });
             try {
-                result = await executeCommand(command, args, options);
+                result = await executeCommand(command, args, options, input);
                 resolve();
             } catch (e) {
                 reject(e);

@@ -51,7 +51,7 @@ class ExplorerNodeManager implements Disposable {
             }), false),
             new LeetCodeNode(Object.assign({}, defaultProblem, {
                 id: Category.Favorite,
-                name: Category.Favorite,
+                name: "Favorite-Debug",
             }), false),
         ];
     }

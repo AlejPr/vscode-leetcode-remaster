@@ -5,14 +5,17 @@ import { ViewColumn } from "vscode";
 import { openKeybindingsEditor, promptHintMessage } from "../utils/uiUtils";
 import { ILeetCodeWebviewOption, LeetCodeWebview } from "./LeetCodeWebview";
 import { markdownEngine } from "./markdownEngine";
+import { ITestRun, parseTestRun, renderTestRun } from "./testResults";
 
 class LeetCodeSubmissionProvider extends LeetCodeWebview {
 
     protected readonly viewType: string = "leetcode.submission";
     private result: IResult;
+    private testRun: ITestRun | undefined;
 
     public show(resultString: string): void {
-        this.result = this.parseResult(resultString);
+        this.testRun = parseTestRun(resultString);
+        this.result = this.parseResult(resultString.replace(/^LEETCODE_TEST_RESULT:.*$/gm, ""));
         this.showWebviewInternal();
         this.showKeybindingsHint();
     }
@@ -25,6 +28,9 @@ class LeetCodeSubmissionProvider extends LeetCodeWebview {
     }
 
     protected getWebviewContent(): string {
+        if (this.testRun) {
+            return renderTestRun(this.testRun);
+        }
         const styles: string = markdownEngine.getStyles();
         const title: string = `## ${this.result.messages[0]}`;
         const messages: string[] = this.result.messages.slice(1).map((m: string) => `* ${m}`);
