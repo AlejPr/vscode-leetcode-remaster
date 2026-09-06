@@ -58,7 +58,7 @@ export class CustomCodeLensProvider implements vscode.CodeLensProvider {
         if (shortcuts.indexOf("test") >= 0) {
             codeLens.push(new vscode.CodeLens(range, {
                 title: "Test",
-                command: "leetcode.testSolution",
+                command: "leetcode.testCases.run",
                 arguments: [document.uri],
             }));
         }

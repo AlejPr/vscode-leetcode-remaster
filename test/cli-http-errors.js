@@ -3,7 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
-const source = fs.readFileSync(require.resolve('../node_modules/vsc-leetcode-cli/lib/plugins/leetcode.js'), 'utf8');
+const source = fs.readFileSync(require.resolve('../cli/lib/plugins/leetcode.js'), 'utf8');
 const expired = {msg: 'session expired', statusCode: -1};
 const context = {plugin: {}, session: {errors: {EXPIRED: expired}}, log: {debug() {}}};
 vm.runInNewContext(source.slice(source.indexOf('plugin.checkError ='), source.indexOf('plugin.init =')), context);

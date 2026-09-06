@@ -21,7 +21,7 @@ class LeetCodeExecutor implements Disposable {
     private configurationChangeListener: Disposable;
 
     constructor() {
-        this.leetCodeRootPath = path.join(__dirname, "..", "..", "node_modules", "vsc-leetcode-cli");
+        this.leetCodeRootPath = path.join(__dirname, "..", "..", "cli");
         this.nodeExecutable = this.getNodePath();
         this.configurationChangeListener = workspace.onDidChangeConfiguration((event: ConfigurationChangeEvent) => {
             if (event.affectsConfiguration("leetcode.nodePath")) {
@@ -189,13 +189,6 @@ class LeetCodeExecutor implements Disposable {
         const args: string[] = [binary, "test", solution, "--webview", "-i"];
         return testCommandResult(executeCommandWithProgress("Running edited test cases...", wsl.useWsl() ? "wsl" : node,
             wsl.useWsl() ? [node].concat(args) : args, { shell: false }, input));
-    }
-
-    public async testSolution(filePath: string, testString?: string): Promise<string> {
-        if (testString) {
-            return await testCommandResult(this.executeCommandWithProgressEx("Submitting to LeetCode...", this.nodeExecutable, [await this.getLeetCodeBinaryPath(), "test", "--webview", `"${filePath}"`, "-t", `${testString}`]));
-        }
-        return await testCommandResult(this.executeCommandWithProgressEx("Submitting to LeetCode...", this.nodeExecutable, [await this.getLeetCodeBinaryPath(), "test", "--webview", `"${filePath}"`]));
     }
 
     public async switchEndpoint(endpoint: string): Promise<string> {

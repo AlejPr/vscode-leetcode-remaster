@@ -1,14 +1,18 @@
 // Licensed under the MIT license. All rights reserved.
 import { randomBytes } from "crypto";
-import { ExtensionContext, Memento, Uri, ViewColumn, workspace } from "vscode";
+import { ExtensionContext, Memento, Uri, ViewColumn, window, workspace } from "vscode";
 import { getLeetCodeEndpoint } from "../commands/plugin";
+import { listProblems } from "../commands/list";
+import { explorerNodeManager } from "../explorer/explorerNodeManager";
 import { leetCodeExecutor } from "../leetCodeExecutor";
 import { leetCodeManager } from "../leetCodeManager";
 import { IProblem, UserStatus } from "../shared";
 import { shouldUseEndpointTranslation } from "../utils/settingUtils";
+import { getNodeIdFromFile } from "../utils/problemUtils";
+import { showFileSelectDialog } from "../utils/uiUtils";
 import { ILeetCodeWebviewOption, LeetCodeWebview } from "./LeetCodeWebview";
 import { leetCodeSubmissionProvider } from "./leetCodeSubmissionProvider";
-import { ICaseDraft, ICaseExamples, parseCaseExamples, renderCaseEditor, serializeCases, validDraft } from "./testCaseEditor";
+import { ICaseDraft, ICaseExamples, parseCaseExamples, parseCaseFile, renderCaseEditor, serializeCases, validDraft } from "./testCaseEditor";
 
 class LeetCodeTestCasesProvider extends LeetCodeWebview {
     protected readonly viewType: string = "leetcode.testCases";
@@ -55,13 +59,53 @@ class LeetCodeTestCasesProvider extends LeetCodeWebview {
         await this.showWebviewInternal();
     }
 
+    public async run(input?: Uri | { leetcodeTestCasesToken?: string }): Promise<void> {
+        if (input && !(input instanceof Uri)) {
+            this.executeCaseAction("run", input);
+            return;
+        }
+        if (!input && this.panel?.active) {
+            this.executeCaseAction("run", { leetcodeTestCasesToken: this.token });
+            return;
+        }
+        const uri: Uri | undefined = input || window.activeTextEditor?.document.uri;
+        if (!uri) {
+            window.showErrorMessage("Open a LeetCode solution before running test cases.");
+            return;
+        }
+        try {
+            if (this.panel && this.filePath === uri.fsPath && this.endpoint === getLeetCodeEndpoint()) {
+                this.executeCaseAction("run", { leetcodeTestCasesToken: this.token });
+                return;
+            }
+            const id: string = await getNodeIdFromFile(uri.fsPath);
+            const problem: IProblem | undefined = explorerNodeManager.getNodeById(id) ||
+                (await listProblems()).find((candidate: IProblem) => candidate.id === id);
+            if (!problem) {
+                throw new Error(`Could not resolve the problem for ${uri.fsPath}. Refresh the problem list and try again.`);
+            }
+            const endpoint: string = getLeetCodeEndpoint();
+            await this.show(workspace.getConfiguration("leetcode").get<boolean>("enableSideMode", true), problem, uri.fsPath);
+            if (this.filePath === uri.fsPath && this.endpoint === endpoint && this.examples.names.length) {
+                await this.onDidReceiveMessage({ command: "run", token: this.token, draft: this.draft });
+            }
+        } catch (error) {
+            window.showErrorMessage(String(error));
+        }
+    }
+
+    public executeCaseAction(command: "run" | "reset" | "import" | "export", context?: { leetcodeTestCasesToken?: string }): void {
+        if (this.panel && context?.leetcodeTestCasesToken === this.token) {
+            this.panel.webview.postMessage({ command, token: this.token });
+        }
+    }
+
     protected getWebviewOption(): ILeetCodeWebviewOption {
         return { title: "Test Cases", viewColumn: this.sideMode ? ViewColumn.Two : ViewColumn.One, preserveFocus: true };
     }
 
     protected getWebviewContent(): string {
-        return renderCaseEditor(this.token, this.examples.names, this.draft,
-            `${this.problem.id}. ${this.problem.name}`, this.error, this.running);
+        return renderCaseEditor(this.token, this.examples.names, this.draft, this.error, this.running);
     }
 
     protected async onDidReceiveMessage(message: any): Promise<void> {
@@ -81,11 +125,51 @@ class LeetCodeTestCasesProvider extends LeetCodeWebview {
             }
             return;
         }
-        if (!["change", "run"].includes(message.command) || !validDraft(message.draft, this.examples.names.length)) {
+        if (!["change", "run", "import", "export"].includes(message.command) || !validDraft(message.draft, this.examples.names.length)) {
             return;
         }
         this.draft = message.draft;
         await this.saveDraft(token);
+        if (token !== this.token) {
+            return;
+        }
+        if (message.command === "import" || message.command === "export") {
+            try {
+                if (message.command === "export") {
+                    const data: string = serializeCases(message.draft.cases, this.examples.raw) + "\n";
+                    const uri: Uri | undefined = await window.showSaveDialog({
+                        defaultUri: Uri.file(this.filePath + ".cases.txt"),
+                        saveLabel: "Export Test Cases",
+                        filters: { "Text files": ["txt"] },
+                    });
+                    if (uri && token === this.token) {
+                        await workspace.fs.writeFile(uri, Buffer.from(data, "utf8"));
+                    }
+                } else {
+                    const files: Uri[] | undefined = await showFileSelectDialog(this.filePath);
+                    if (!files?.length || token !== this.token) {
+                        return;
+                    }
+                    const input: Uint8Array = await workspace.fs.readFile(files[0]);
+                    if (token !== this.token) {
+                        return;
+                    }
+                    const draft: ICaseDraft = parseCaseFile(Buffer.from(input).toString("utf8"), this.examples.names.length, this.examples.raw);
+                    this.draft = draft;
+                    this.error = "";
+                    await this.saveDraft(token);
+                    if (token === this.token && this.panel) {
+                        this.panel.webview.html = this.getWebviewContent();
+                    }
+                }
+            } catch (error) {
+                if (token === this.token) {
+                    this.error = `Could not ${message.command} test cases: ${String(error)}`;
+                    this.postStatus();
+                }
+            }
+            return;
+        }
         if (message.command !== "run" || token !== this.token || this.running) {
             return;
         }

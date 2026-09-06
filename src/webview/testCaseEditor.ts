@@ -56,9 +56,31 @@ export function serializeCases(cases: string[][], raw: boolean): string {
     }).join("\n")).join("\n");
 }
 
-export function renderCaseEditor(token: string, names: string[], draft: ICaseDraft, title: string, error: string, busy: boolean): string {
+export function parseCaseFile(input: string, width: number, raw: boolean): ICaseDraft {
+    const text: string = input.trim();
+    if (!text || width < 1) {
+        throw new Error("The test case file must contain JSON inputs for this problem.");
+    }
+    const lines: string[] = text.split(/\r?\n/);
+    if (!raw && lines.length % width !== 0) {
+        throw new Error(`Each test case needs ${width} inputs, one JSON value per line.`);
+    }
+    const cases: string[][] = [];
+    if (raw) {
+        // ponytail: without parameter metadata, retain the file as one raw case; split when metadata is available.
+        cases.push([text]);
+    } else {
+        for (let index: number = 0; index < lines.length; index += width) {
+            cases.push(lines.slice(index, index + width));
+        }
+    }
+    serializeCases(cases, raw);
+    return { cases, selected: 0 };
+}
+
+export function renderCaseEditor(token: string, names: string[], draft: ICaseDraft, error: string, busy: boolean): string {
     const nonce: string = randomBytes(16).toString("hex");
-    const data: string = JSON.stringify({token, names, draft, title, error, busy}).replace(/</g, "\\u003c")
+    const data: string = JSON.stringify({token, names, draft, error, busy}).replace(/</g, "\\u003c")
         .replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -66,8 +88,6 @@ export function renderCaseEditor(token: string, names: string[], draft: ICaseDra
         <style nonce="${nonce}">
             body { padding: 20px; color: var(--vscode-foreground); background: var(--vscode-editor-background);
                 font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
-            header { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 18px; }
-            #title { font-size: 20px; font-weight: 700; color: var(--vscode-foreground); }
             .tabs { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0 22px; }
             #tabs { display: contents; }
             .case-tab { position: relative; }
@@ -105,7 +125,9 @@ export function renderCaseEditor(token: string, names: string[], draft: ICaseDra
             #error { color: var(--vscode-errorForeground); white-space: pre-wrap; }
             [hidden] { display: none !important; }
         </style></head><body>
-        <header><span id="title"></span><div class="actions"><button id="retry" hidden>Retry loading</button>
+        <button id="retry" hidden>Retry loading</button>
+        <!-- Toolbar actions moved to the native webview context menu.
+        <div class="actions">
             <button id="reset" aria-label="Reset examples" title="Reset examples">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
                     <path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>
@@ -114,7 +136,7 @@ export function renderCaseEditor(token: string, names: string[], draft: ICaseDra
             <button id="run" aria-label="Run all test cases" title="Run all test cases">
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 4l12 8-12 8z"/></svg>
             </button>
-        </div></header>
+        </div> -->
         <p id="error" role="alert" hidden></p>
         <div class="tabs"><div id="tabs" role="tablist" aria-label="Test cases"></div><button id="add" aria-label="Clone selected test case" title="Clone selected test case"></button></div>
         <div id="fields" role="tabpanel"></div>
@@ -144,12 +166,12 @@ export function renderCaseEditor(token: string, names: string[], draft: ICaseDra
             }
             function setError(text) { byId('error').textContent = text; byId('error').hidden = !text; }
             function updateButtons() {
-                byId('run').disabled = busy || !config.names.length;
-                byId('run').title = busy ? 'Running…' : 'Run all test cases';
-                byId('run').setAttribute('aria-label', byId('run').title);
-                byId('run').setAttribute('aria-busy', String(busy));
+                document.documentElement.dataset.vscodeContext = JSON.stringify({
+                    leetcodeTestCasesToken: config.token,
+                    leetcodeTestCasesReady: !!config.names.length,
+                    leetcodeTestCasesBusy: busy
+                });
                 byId('add').disabled = !config.names.length;
-                byId('reset').disabled = !config.names.length;
                 byId('retry').hidden = !!config.names.length;
             }
             function render(focusTab) {
@@ -202,17 +224,24 @@ export function renderCaseEditor(token: string, names: string[], draft: ICaseDra
                 });
                 updateButtons(); if (focusTab && byId('case-' + draft.selected)) byId('case-' + draft.selected).focus();
             }
-            byId('title').textContent = config.title;
             byId('add').onclick = () => { draft.cases.push([...draft.cases[draft.selected]]); draft.selected = draft.cases.length - 1; render(true); save(); };
-            byId('run').onclick = () => {
-                if (busy) return;
+            function runCases() {
+                if (busy || !config.names.length) return;
                 clearTimeout(saveTimer); saveTimer = undefined; lastSentCases = JSON.stringify(draft.cases);
                 busy = true; updateButtons(); setError(''); send('run');
-            };
-            byId('reset').onclick = () => { clearTimeout(saveTimer); saveTimer = undefined; send('reset'); };
+            }
+            function resetCases() {
+                if (!config.names.length) return;
+                clearTimeout(saveTimer); saveTimer = undefined; send('reset');
+            }
             byId('retry').onclick = () => send('retry');
             window.addEventListener('message', event => {
                 const message = event.data; if (message.token !== config.token) return;
+                if (message.command === 'run') runCases();
+                if (message.command === 'reset') resetCases();
+                if (['import', 'export'].includes(message.command) && config.names.length) {
+                    save(); send(message.command);
+                }
                 if (message.command === 'status') { busy = message.busy; setError(message.error || ''); updateButtons(); }
             });
             setError(config.error); render(false);

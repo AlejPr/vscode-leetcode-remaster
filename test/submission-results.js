@@ -7,7 +7,7 @@ const vm = require('vm');
 const { createRequire } = require('module');
 const { parseTestRun, getTestCases, renderTestRun } = require('../out/src/webview/testResults');
 const root = path.join(__dirname, '..');
-const cliRequire = createRequire(path.join(root, 'node_modules/vsc-leetcode-cli/package.json'));
+const cliRequire = createRequire(path.join(root, 'cli/package.json'));
 const base = {
   version: 1, status: 'Wrong Answer', runtime: '0 ms',
   input: '[2,7,11,15]\n9\n[3,2,4]\n6\n[3,3]\n6',
@@ -76,8 +76,8 @@ assert(malicious.includes('&lt;/pre&gt;&lt;script&gt;'));
 assert(html.includes("default-src 'none'"));
 
 // Exercise the real CLI formatter and command output without network or user credentials.
-const pluginSource = fs.readFileSync(path.join(root, 'node_modules/vsc-leetcode-cli/lib/plugins/leetcode.js'), 'utf8');
-const commandSource = fs.readFileSync(path.join(root, 'node_modules/vsc-leetcode-cli/lib/commands/test.js'), 'utf8');
+const pluginSource = fs.readFileSync(path.join(root, 'cli/lib/plugins/leetcode.js'), 'utf8');
+const commandSource = fs.readFileSync(path.join(root, 'cli/lib/commands/test.js'), 'utf8');
 const logs = [];
 const context = { _: cliRequire('underscore'), lodash: cliRequire('lodash'), util: require('util'), Buffer,
   file: {exist: () => true, meta: () => ({id: '1', lang: 'rust'})},

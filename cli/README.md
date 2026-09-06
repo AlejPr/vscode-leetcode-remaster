@@ -1,3 +1,14 @@
+# Project CLI
+
+This directory contains the customized CLI maintained as part of this extension.
+Runtime dependencies are declared in the repository root `package.json`; do not install this directory as a separate package.
+Run it from the repository root with `node cli/bin/leetcode <command>`.
+The upstream license and version metadata are retained.
+
+The original upstream README follows for attribution and historical reference; its installation and update instructions do not apply to this fork.
+
+---
+
 [![npm version](https://img.shields.io/npm/v/leetcode-cli.svg?style=flat)](https://www.npmjs.com/package/leetcode-cli)
 [![Releases](https://img.shields.io/github/release/skygragon/leetcode-cli.svg?style=flat)](https://github.com/skygragon/leetcode-cli/releases)
 [![license](https://img.shields.io/npm/l/leetcode-cli.svg?style=flat)](https://github.com/skygragon/leetcode-cli/blob/master/LICENSE)
