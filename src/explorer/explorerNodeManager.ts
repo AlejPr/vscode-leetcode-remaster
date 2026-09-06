@@ -5,6 +5,8 @@ import * as _ from "lodash";
 import { Disposable } from "vscode";
 import * as list from "../commands/list";
 import { getSortingStrategy } from "../commands/plugin";
+import { leetCodeChannel } from "../leetCodeChannel";
+import { queryDailyProblem } from "../request/query-daily-problem";
 import { Category, defaultProblem, ProblemState, SortingStrategy } from "../shared";
 import { shouldHideSolvedProblem } from "../utils/settingUtils";
 import { LeetCodeNode } from "./LeetCodeNode";
@@ -13,11 +15,24 @@ class ExplorerNodeManager implements Disposable {
     private explorerNodeMap: Map<string, LeetCodeNode> = new Map<string, LeetCodeNode>();
     private companySet: Set<string> = new Set<string>();
     private tagSet: Set<string> = new Set<string>();
+    private dailyNode: LeetCodeNode | undefined;
 
     public async refreshCache(): Promise<void> {
         this.dispose();
         const shouldHideSolved: boolean = shouldHideSolvedProblem();
-        for (const problem of await list.listProblems()) {
+        const problems = await list.listProblems();
+        if (problems.length) {
+            try {
+                const dailyId: string = await queryDailyProblem();
+                const dailyProblem = problems.find((problem) => problem.id === dailyId);
+                if (dailyProblem) {
+                    this.dailyNode = new LeetCodeNode(dailyProblem);
+                }
+            } catch (error) {
+                leetCodeChannel.appendLine(`Could not load the daily problem: ${String(error)}`);
+            }
+        }
+        for (const problem of problems) {
             if (shouldHideSolved && problem.state === ProblemState.AC) {
                 continue;
             }
@@ -57,9 +72,10 @@ class ExplorerNodeManager implements Disposable {
     }
 
     public getAllNodes(): LeetCodeNode[] {
-        return this.applySortingStrategy(
+        const nodes: LeetCodeNode[] = this.applySortingStrategy(
             Array.from(this.explorerNodeMap.values()),
         );
+        return this.dailyNode ? [this.dailyNode, ...nodes.filter((node) => node.id !== this.dailyNode!.id)] : nodes;
     }
 
     public getAllDifficultyNodes(): LeetCodeNode[] {
@@ -107,7 +123,11 @@ class ExplorerNodeManager implements Disposable {
     }
 
     public getNodeById(id: string): LeetCodeNode | undefined {
-        return this.explorerNodeMap.get(id);
+        return this.explorerNodeMap.get(id) || (this.dailyNode?.id === id ? this.dailyNode : undefined);
+    }
+
+    public isDailyProblem(id: string): boolean {
+        return this.dailyNode?.id === id;
     }
 
     public getFavoriteNodes(): LeetCodeNode[] {
@@ -149,6 +169,7 @@ class ExplorerNodeManager implements Disposable {
     }
 
     public dispose(): void {
+        this.dailyNode = undefined;
         this.explorerNodeMap.clear();
         this.companySet.clear();
         this.tagSet.clear();

@@ -94,9 +94,12 @@ export class LeetCodeTreeDataProvider implements vscode.TreeDataProvider<LeetCod
         }
     }
 
-    private parseIconPathFromProblemState(element: LeetCodeNode): string {
+    private parseIconPathFromProblemState(element: LeetCodeNode): string | vscode.ThemeIcon {
         if (!element.isProblem) {
             return "";
+        }
+        if (explorerNodeManager.isDailyProblem(element.id) && element.state !== ProblemState.AC) {
+            return new vscode.ThemeIcon("calendar", new vscode.ThemeColor("charts.blue"));
         }
         const { isPremium } = globalState.getUserStatus() ?? {};
         switch (element.state) {
