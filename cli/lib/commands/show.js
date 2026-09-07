@@ -57,6 +57,11 @@ const cmd = {
         default:  false,
         describe: 'Show extra question details in source code'
       })
+      .option('webview', {
+        type:     'boolean',
+        default:  false,
+        describe: 'Include structured problem details for VS Code'
+      })
       .option('T', {
         alias:    'dontTranslate',
         type:     'boolean',
@@ -175,6 +180,26 @@ function showProblem(problem, argv) {
 
   log.info();
   log.info(problem.desc);
+  if (argv.webview) {
+    const payload = {
+      version: 1,
+      id: String(problem.fid || problem.id || ''),
+      title: problem.name,
+      url: problem.link,
+      category: problem.category,
+      difficulty: problem.level,
+      acceptanceRate: problem.percent,
+      likes: problem.likes,
+      dislikes: problem.dislikes,
+      totalAccepted: problem.totalAC,
+      totalSubmissions: problem.totalSubmit,
+      tags: problem.tags || [],
+      companies: problem.companies || [],
+      hints: problem.hints || [],
+      content: problem.desc
+    };
+    log.info('LEETCODE_PROBLEM:' + Buffer.from(JSON.stringify(payload), 'utf8').toString('base64'));
+  }
 }
 
 cmd.handler = function(argv) {

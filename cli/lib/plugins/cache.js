@@ -49,6 +49,9 @@ plugin.getProblem = function (problem, needTranslation, cb) {
     } else if (!['likes', 'dislikes'].every(p => p in _problem)) {
       // do not hit problem without likes & dislikes (logic will be improved in new lib)
       log.debug('cache discarded for being too old: ' + k + '.json');
+    } else if (_problem.tagMetadataVersion !== 2) {
+      // Refresh entries created before detailed LeetCode topic and hint metadata was cached.
+      log.debug('cache discarded for missing topic or hint metadata: ' + k + '.json');
     } else {
       // cache hit
       log.debug('cache hit: ' + k + '.json');

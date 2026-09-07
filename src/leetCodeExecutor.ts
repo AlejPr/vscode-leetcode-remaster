@@ -140,7 +140,7 @@ class LeetCodeExecutor implements Disposable {
     }
 
     public async getDescription(problemNodeId: string, needTranslation: boolean): Promise<string> {
-        const cmd: string[] = [await this.getLeetCodeBinaryPath(), "show", problemNodeId, "-x"];
+        const cmd: string[] = [await this.getLeetCodeBinaryPath(), "show", problemNodeId, "-x", "--webview"];
         if (!needTranslation) {
             cmd.push("-T");
         }

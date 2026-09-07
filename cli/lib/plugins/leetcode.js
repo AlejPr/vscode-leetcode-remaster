@@ -149,7 +149,16 @@ plugin.getProblem = function(problem, needTranslation, cb) {
       '    codeDefinition',
       '    exampleTestcaseList',
       '    enableRunCode',
+      '    hints',
       '    metaData',
+      '    positionLevelTags {',
+      '      name',
+      '      slug',
+      '    }',
+      '    topicTags {',
+      '      name',
+      '      slug',
+      '    }',
       '    translatedContent',
       '  }',
       '}'
@@ -173,6 +182,12 @@ plugin.getProblem = function(problem, needTranslation, cb) {
     problem.dislikes = q.dislikes;
 
     problem.desc = (q.translatedContent && needTranslation) ? q.translatedContent : q.content;
+
+    problem.tags = [].concat(q.positionLevelTags || [], q.topicTags || [])
+      .map(tag => tag.name || tag.slug)
+      .filter(tag => typeof tag === 'string' && tag.length > 0);
+    problem.hints = (q.hints || []).filter(hint => typeof hint === 'string');
+    problem.tagMetadataVersion = 2;
 
     problem.templates = JSON.parse(q.codeDefinition);
     problem.exampleTestcaseList = q.exampleTestcaseList;
