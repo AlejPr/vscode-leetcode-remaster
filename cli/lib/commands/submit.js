@@ -15,6 +15,7 @@ const cmd = {
   desc:    'Submit code',
   builder: function(yargs) {
     return yargs
+      .option('webview', { type: 'boolean', default: false, describe: 'Include structured Wrong Answer results for VS Code' })
       .positional('filename', {
         type:     'string',
         describe: 'Code file to submit',
@@ -106,6 +107,26 @@ cmd.handler = function(argv) {
         printResult(result, 'answer');
         printResult(result, 'expected_answer');
         printResult(result, 'stdout');
+        if (argv.webview && result.state === 'Wrong Answer') {
+          const strings = value => Array.isArray(value) ? value.map(String) : [value == null ? '' : String(value)];
+          const payload = {
+            version: 1,
+            source: 'submission',
+            status: result.state,
+            runtime: String(result.runtime || ''),
+            passed: result.passed,
+            total: result.total,
+            input: String(result.raw_testcase || result.testcase),
+            metadata: problem.templateMeta || {},
+            outputs: strings(result.answer),
+            expected: strings(result.expected_answer),
+            comparison: '0',
+            correct: false,
+            errors: result.error,
+            stdout: String(result.stdout || '')
+          };
+          log.info('LEETCODE_TEST_RESULT:' + Buffer.from(JSON.stringify(payload), 'utf8').toString('base64'));
+        }
       }
 
       // update this problem status in local cache

@@ -81,6 +81,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             vscode.commands.registerCommand("leetcode.testCases.import", (menuContext) => leetCodeTestCasesProvider.executeCaseAction("import", menuContext)),
             vscode.commands.registerCommand("leetcode.testCases.export", (menuContext) => leetCodeTestCasesProvider.executeCaseAction("export", menuContext)),
             vscode.commands.registerCommand("leetcode.testCases.reset", (menuContext) => leetCodeTestCasesProvider.executeCaseAction("reset", menuContext)),
+            vscode.commands.registerCommand("leetcode.testCases.use", (uri: vscode.Uri, input: string) =>
+                leetCodeTestCasesProvider.useTestcase(uri, input)),
             vscode.commands.registerCommand("leetcode.submitSolution", (uri?: vscode.Uri) => {
                 TrackData.report({
                     event_key: `vscode_submit`,

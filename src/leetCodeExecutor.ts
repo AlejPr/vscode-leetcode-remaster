@@ -165,7 +165,8 @@ class LeetCodeExecutor implements Disposable {
 
     public async submitSolution(filePath: string): Promise<string> {
         try {
-            return await this.executeCommandWithProgressEx("Submitting to LeetCode...", this.nodeExecutable, [await this.getLeetCodeBinaryPath(), "submit", `"${filePath}"`]);
+            return await this.executeCommandWithProgressEx("Submitting to LeetCode...", this.nodeExecutable,
+                [await this.getLeetCodeBinaryPath(), "submit", "--webview", `"${filePath}"`]);
         } catch (error) {
             if (error.result) {
                 return error.result;

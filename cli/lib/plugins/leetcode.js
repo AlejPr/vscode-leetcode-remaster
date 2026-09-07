@@ -262,6 +262,7 @@ function formatResult(result) {
     memory_percentile:  result.memory_percentile || '',
     state:              result.status_msg,
     testcase:           util.inspect(result.input || result.last_testcase || ''),
+    raw_testcase:       result.input || result.last_testcase || '',
     passed:             result.total_correct || 0,
     total:              result.total_testcases || 0
   };

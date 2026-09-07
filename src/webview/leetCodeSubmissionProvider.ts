@@ -1,7 +1,7 @@
 // Copyright (c) jdneo. All rights reserved.
 // Licensed under the MIT license.
 
-import { ViewColumn } from "vscode";
+import { commands, Uri, ViewColumn } from "vscode";
 import { openKeybindingsEditor, promptHintMessage } from "../utils/uiUtils";
 import { ILeetCodeWebviewOption, LeetCodeWebview } from "./LeetCodeWebview";
 import { markdownEngine } from "./markdownEngine";
@@ -12,8 +12,10 @@ class LeetCodeSubmissionProvider extends LeetCodeWebview {
     protected readonly viewType: string = "leetcode.submission";
     private result: IResult;
     private testRun: ITestRun | undefined;
+    private filePath: string | undefined;
 
-    public show(resultString: string): void {
+    public show(resultString: string, filePath?: string): void {
+        this.filePath = filePath;
         this.testRun = parseTestRun(resultString);
         this.result = this.parseResult(resultString.replace(/^LEETCODE_TEST_RESULT:.*$/gm, ""));
         this.showWebviewInternal();
@@ -65,6 +67,13 @@ class LeetCodeSubmissionProvider extends LeetCodeWebview {
 
     protected onDidDisposeWebview(): void {
         super.onDidDisposeWebview();
+        this.filePath = undefined;
+    }
+
+    protected async onDidReceiveMessage(message: any): Promise<void> {
+        if (message?.command === "useTestcase" && this.testRun?.source === "submission" && this.filePath) {
+            await commands.executeCommand("leetcode.testCases.use", Uri.file(this.filePath), this.testRun.input);
+        }
     }
 
     private async showKeybindingsHint(): Promise<void> {

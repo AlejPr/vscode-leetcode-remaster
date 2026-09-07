@@ -100,6 +100,30 @@ class LeetCodeTestCasesProvider extends LeetCodeWebview {
         }
     }
 
+    public async useTestcase(uri: Uri, input: string): Promise<void> {
+        try {
+            if (!this.panel || this.filePath !== uri.fsPath || this.endpoint !== getLeetCodeEndpoint()) {
+                const id: string = await getNodeIdFromFile(uri.fsPath);
+                const problem: IProblem | undefined = explorerNodeManager.getNodeById(id) ||
+                    (await listProblems()).find((candidate: IProblem) => candidate.id === id);
+                if (!problem) {
+                    throw new Error(`Could not resolve the problem for ${uri.fsPath}. Refresh the problem list and try again.`);
+                }
+                await this.show(workspace.getConfiguration("leetcode").get<boolean>("enableSideMode", true), problem, uri.fsPath);
+            }
+            const imported: ICaseDraft = parseCaseFile(input, this.examples.names.length, this.examples.raw);
+            this.draft.cases.push(...imported.cases.map((values: string[]) => values.slice()));
+            this.draft.selected = this.draft.cases.length - 1;
+            await this.saveDraft(this.token);
+            if (this.panel) {
+                this.panel.webview.html = this.getWebviewContent();
+                this.panel.reveal(this.getWebviewOption().viewColumn);
+            }
+        } catch (error) {
+            window.showErrorMessage(`Could not use the failing test case: ${String(error)}`);
+        }
+    }
+
     protected getWebviewOption(): ILeetCodeWebviewOption {
         return { title: "Test Cases", viewColumn: this.sideMode ? ViewColumn.Two : ViewColumn.One, preserveFocus: true };
     }

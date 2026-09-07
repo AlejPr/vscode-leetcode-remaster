@@ -246,7 +246,8 @@ async function providerChecks() {
     if (name === '../leetCodeManager') return {leetCodeManager: {getStatus: () => signedOut ? shared.UserStatus.SignedOut : shared.UserStatus.SignedIn}};
     if (name === '../shared') return shared;
     if (name === '../utils/settingUtils') return {shouldUseEndpointTranslation: () => false};
-    if (name === './LeetCodeWebview') return {LeetCodeWebview: class {async showWebviewInternal() {this.panel = {webview: {html: this.getWebviewContent(), postMessage() {}}};}}};
+    if (name === './LeetCodeWebview') return {LeetCodeWebview: class {async showWebviewInternal() {
+      this.panel = {reveal() {this.revealed = true;}, webview: {html: this.getWebviewContent(), postMessage() {}}};}}};
     if (name === './leetCodeSubmissionProvider') return {leetCodeSubmissionProvider: {show: result => results.push(result)}};
     if (name === './testCaseEditor') return require('../out/src/webview/testCaseEditor');
     throw new Error(name);
@@ -340,6 +341,14 @@ async function providerChecks() {
   assert.strictEqual(runs.at(-1).file, 'hidden.rs');
   activeUri = undefined; provider.panel = undefined;
   await provider.run(); assert(errors.at(-1).includes('Open a LeetCode solution'));
+  await provider.useTestcase(Uri.file('solution.rs'), '[9,8]\n17');
+  assert.deepStrictEqual(provider.draft.cases.at(-1), ['[9,8]', '17']);
+  assert.strictEqual(provider.draft.selected, provider.draft.cases.length - 1);
+  assert(provider.panel.revealed);
+  const usedDraft = JSON.parse(JSON.stringify(provider.draft));
+  await provider.useTestcase(Uri.file('solution.rs'), 'bad');
+  assert.deepStrictEqual(provider.draft, usedDraft);
+  assert(errors.at(-1).includes('Could not use'));
 }
 async function transportChecks() {
   const sandbox = {exports: {}, process, require(name) {

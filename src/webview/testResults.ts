@@ -4,6 +4,9 @@ import { createHash, randomBytes } from "crypto";
 
 export interface ITestRun {
     version: number;
+    source?: "submission";
+    passed?: number;
+    total?: number;
     status: string;
     runtime: string;
     input: string;
@@ -38,6 +41,10 @@ export function parseTestRun(raw: string): ITestRun | undefined {
             !strings(run.outputs) || !strings(run.expected) || !strings(run.errors) ||
             (run.stdoutByCase !== undefined && !strings(run.stdoutByCase)) ||
             (run.correct !== null && typeof run.correct !== "boolean") || !run.metadata ||
+            (run.source !== undefined && run.source !== "submission") ||
+            (run.passed !== undefined && (!Number.isInteger(run.passed) || run.passed < 0)) ||
+            (run.total !== undefined && (!Number.isInteger(run.total) || run.total < 0)) ||
+            (run.passed !== undefined && run.total !== undefined && run.passed > run.total) ||
             (run.metadata.params !== undefined && (!Array.isArray(run.metadata.params) ||
                 !run.metadata.params.every((param: { name: string }) => param && typeof param.name === "string")))) {
             return undefined;
@@ -90,6 +97,7 @@ function escapeHtml(value: string): string {
 }
 
 export function renderTestRun(run: ITestRun): string {
+    const submission: boolean = run.source === "submission";
     const cases: ITestCaseResult[] = /^(Compile|Compilation) Error$/i.test(run.status.trim()) ? [] : getTestCases(run);
     const nonce: string = randomBytes(16).toString("hex");
     const identity: string = createHash("sha256").update(JSON.stringify(run)).digest("hex");
@@ -98,8 +106,8 @@ export function renderTestRun(run: ITestRun): string {
     const statusClass: string = run.status === "Accepted" ? "passed" :
         /Wrong Answer|Error|Exceeded|Invalid/i.test(run.status) ? "failed" : "neutral";
     const runtime: string = /^\d+(\.\d+)?$/.test(run.runtime) ? `${run.runtime} ms` : run.runtime;
-    const box = (label: string, value: string | undefined): string =>
-        `<section class="field"><h3>${escapeHtml(label)}</h3><pre>${escapeHtml(value === undefined ? "Not available" : value)}</pre></section>`;
+    const box = (label: string, value: string | undefined, valueClass: string = ""): string =>
+        `<section class="field ${valueClass}"><h3>${escapeHtml(label)}</h3><pre>${escapeHtml(value === undefined ? "Not available" : value)}</pre></section>`;
     const tabs: string = cases.map((item: ITestCaseResult, index: number) => {
         const status: string = item.correct === true ? "Accepted" : item.correct === false ? "Wrong Answer" : "Verdict unavailable";
         const color: string = item.correct === true ? "passed" : item.correct === false ? "failed" : "neutral";
@@ -109,12 +117,17 @@ export function renderTestRun(run: ITestRun): string {
             <span class="${color}" aria-hidden="true">${icon}</span> Case ${index + 1}</button>`;
     }).join("");
     const panels: string = cases.map((item: ITestCaseResult, index: number) => `
-        <div role="tabpanel" id="panel-${index}" aria-labelledby="case-${index}" tabindex="0" ${index === initial ? "" : "hidden"}>
-            <h3>Input</h3>
+        <div ${submission ? `class="submission-case"` : `role="tabpanel" id="panel-${index}" aria-labelledby="case-${index}" tabindex="0" ${index === initial ? "" : "hidden"}`}>
+            <div class="field-heading"><h3>Input</h3>${submission ?
+                `<button id="use-testcase" title="Copy this input to Test Cases">
+                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                        <rect x="5" y="5" width="8" height="8" rx="1"/>
+                        <path d="M3 11H2.5A1.5 1.5 0 0 1 1 9.5v-7A1.5 1.5 0 0 1 2.5 1h7A1.5 1.5 0 0 1 11 2.5V3"/>
+                    </svg>Use Testcase</button>` : ""}</div>
             ${item.inputs.length ? item.inputs.map((input: { name: string; value: string }) =>
                 `<div class="input"><div class="parameter">${escapeHtml(input.name)} =</div><pre>${escapeHtml(input.value)}</pre></div>`
             ).join("") : "<p>Individual inputs are not available.</p>"}
-            ${box("Output", item.output)}${box("Expected", item.expected)}
+            ${box("Output", item.output, submission ? "output-wrong" : "")}${box("Expected", item.expected, submission ? "expected-correct" : "")}
             ${item.stdout ? box("Console output", item.stdout) : ""}
         </div>`).join("");
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
@@ -130,6 +143,14 @@ export function renderTestRun(run: ITestRun): string {
             .failed { color: var(--vscode-testing-iconFailed, #f85149); }
             .neutral, .runtime, .parameter { color: var(--vscode-descriptionForeground); }
             .runtime, .parameter { font-size: 12px; }
+            .field-heading { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; }
+            .field-heading h3 { margin: 0 0 8px; }
+            #use-testcase { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px;
+                color: var(--vscode-foreground); }
+            #use-testcase svg { width: 14px; height: 14px; fill: none; stroke: var(--vscode-descriptionForeground);
+                stroke-width: 1.3; }
+            .output-wrong pre { color: var(--vscode-testing-iconFailed, #f85149); }
+            .expected-correct pre { color: var(--vscode-testing-iconPassed, #2cbb5d); }
             [role=tablist] { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
             button { border: 0; border-radius: 7px; padding: 8px 14px; background: transparent;
                 color: var(--vscode-descriptionForeground); font: inherit; cursor: pointer; }
@@ -143,9 +164,10 @@ export function renderTestRun(run: ITestRun): string {
             pre { font-family: var(--vscode-editor-font-family); white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0 0; }
             [hidden] { display: none !important; }
         </style></head><body>
-        <header><h2 class="${statusClass}">${escapeHtml(run.status)}</h2><span class="runtime">Runtime: ${escapeHtml(runtime || "Not available")}</span></header>
+        <header><h2 class="${statusClass}">${escapeHtml(run.status)}</h2><span class="runtime">${submission && run.passed !== undefined && run.total !== undefined ?
+            `${run.passed} / ${run.total} testcases passed` : `Runtime: ${escapeHtml(runtime || "Not available")}`}</span></header>
         ${run.errors.length ? box("Error", run.errors.join("\n")) : ""}
-        ${cases.length ? `<div role="tablist" aria-label="Test cases">${tabs}</div>${panels}` : ""}
+        ${cases.length ? `${submission ? "" : `<div role="tablist" aria-label="Test cases">${tabs}</div>`}${panels}` : ""}
         ${run.stdout && !run.stdoutByCase?.length ?
             `<details><summary>Combined console output (case boundaries unavailable)</summary>${box("Console output", run.stdout)}</details>` : ""}
         <script nonce="${nonce}">
@@ -153,6 +175,8 @@ export function renderTestRun(run: ITestRun): string {
             const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
             const panels = Array.from(document.querySelectorAll('[role="tabpanel"]'));
             const identity = '${identity}';
+            const useTestcase = document.getElementById('use-testcase');
+            if (useTestcase) useTestcase.addEventListener('click', () => vscode.postMessage({ command: 'useTestcase' }));
             function select(index, focus) {
                 tabs.forEach((tab, i) => {
                     tab.setAttribute('aria-selected', String(i === index));
@@ -177,7 +201,7 @@ export function renderTestRun(run: ITestRun): string {
             });
             const saved = vscode.getState();
             const firstIncorrect = ${run.status === "Wrong Answer" ? firstIncorrect : -1};
-            if (firstIncorrect >= 0) {
+            if (firstIncorrect >= 0 && tabs.length) {
                 select(firstIncorrect, true);
             } else if (saved && saved.identity === identity && Number.isInteger(saved.selected) && saved.selected >= 0 && saved.selected < tabs.length) {
                 select(saved.selected, false);
