@@ -7,6 +7,10 @@ export interface ITestRun {
     source?: "submission";
     passed?: number;
     total?: number;
+    memory?: string;
+    runtimePercentile?: number | null;
+    memoryPercentile?: number | null;
+    language?: string;
     status: string;
     runtime: string;
     input: string;
@@ -45,6 +49,9 @@ export function parseTestRun(raw: string): ITestRun | undefined {
             (run.passed !== undefined && (!Number.isInteger(run.passed) || run.passed < 0)) ||
             (run.total !== undefined && (!Number.isInteger(run.total) || run.total < 0)) ||
             (run.passed !== undefined && run.total !== undefined && run.passed > run.total) ||
+            (run.memory !== undefined && typeof run.memory !== "string") ||
+            (run.language !== undefined && typeof run.language !== "string") ||
+            !validPercentile(run.runtimePercentile) || !validPercentile(run.memoryPercentile) ||
             (run.metadata.params !== undefined && (!Array.isArray(run.metadata.params) ||
                 !run.metadata.params.every((param: { name: string }) => param && typeof param.name === "string")))) {
             return undefined;
@@ -53,6 +60,10 @@ export function parseTestRun(raw: string): ITestRun | undefined {
     } catch {
         return undefined;
     }
+}
+
+function validPercentile(value: number | null | undefined): boolean {
+    return value === undefined || value === null || (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100);
 }
 
 export function getTestCases(run: ITestRun): ITestCaseResult[] {
@@ -98,7 +109,8 @@ function escapeHtml(value: string): string {
 
 export function renderTestRun(run: ITestRun): string {
     const submission: boolean = run.source === "submission";
-    const cases: ITestCaseResult[] = /^(Compile|Compilation) Error$/i.test(run.status.trim()) ? [] : getTestCases(run);
+    const acceptedSubmission: boolean = submission && run.status === "Accepted";
+    const cases: ITestCaseResult[] = acceptedSubmission || /^(Compile|Compilation) Error$/i.test(run.status.trim()) ? [] : getTestCases(run);
     const nonce: string = randomBytes(16).toString("hex");
     const identity: string = createHash("sha256").update(JSON.stringify(run)).digest("hex");
     const firstIncorrect: number = cases.findIndex((item: ITestCaseResult) => item.correct === false);
@@ -106,6 +118,29 @@ export function renderTestRun(run: ITestRun): string {
     const statusClass: string = run.status === "Accepted" ? "passed" :
         /Wrong Answer|Error|Exceeded|Invalid/i.test(run.status) ? "failed" : "neutral";
     const runtime: string = /^\d+(\.\d+)?$/.test(run.runtime) ? `${run.runtime} ms` : run.runtime;
+    const metric = (label: string, value: string, percentile: number | null | undefined, colorClass: string, icon: string): string => {
+        const parts: RegExpExecArray | null = /^(\S+)(?:\s+(.*))?$/.exec(value.trim());
+        const amount: string = parts?.[1] || "N/A";
+        const unit: string = parts?.[2] || "";
+        const width: number = typeof percentile === "number" ? Math.max(0, Math.min(100, percentile)) : 0;
+        const beats: string = typeof percentile === "number" ? `Beats <strong>${percentile.toFixed(2)}%</strong>` : "Percentile unavailable";
+        const celebration: string = typeof percentile === "number" && percentile > 75 ?
+            `<span class="celebration" role="img" aria-label="Great result" title="Great result">&#127881;</span>` : "";
+        return `<section class="metric ${colorClass}">
+            <div class="metric-label">${icon}<span>${label}</span></div>
+            <div class="metric-value"><strong>${escapeHtml(amount)}</strong>${unit ? ` <span>${escapeHtml(unit)}</span>` : ""}
+                <i></i><span>${beats}</span>${celebration}</div>
+            <svg class="metric-line" viewBox="0 0 100 3" preserveAspectRatio="none" aria-hidden="true">
+                <rect width="${width}" height="3"/>
+            </svg>
+        </section>`;
+    };
+    const metrics: string = acceptedSubmission ? `<div class="metrics">
+        ${metric("Runtime", runtime, run.runtimePercentile, "runtime-metric",
+            `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.5V8l2.5 1.5"/></svg>`)}
+        ${metric("Memory", run.memory || "", run.memoryPercentile, "memory-metric",
+            `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1"/><path d="M6 1.5v2M10 1.5v2M6 12.5v2M10 12.5v2M1.5 6h2M1.5 10h2M12.5 6h2M12.5 10h2"/></svg>`)}
+    </div>` : "";
     const box = (label: string, value: string | undefined, valueClass: string = ""): string =>
         `<section class="field ${valueClass}"><h3>${escapeHtml(label)}</h3><pre>${escapeHtml(value === undefined ? "Not available" : value)}</pre></section>`;
     const tabs: string = cases.map((item: ITestCaseResult, index: number) => {
@@ -151,6 +186,20 @@ export function renderTestRun(run: ITestRun): string {
                 stroke-width: 1.3; }
             .output-wrong pre { color: var(--vscode-testing-iconFailed, #f85149); }
             .expected-correct pre { color: var(--vscode-testing-iconPassed, #2cbb5d); }
+            .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 360px));
+                justify-content: start; gap: 14px; }
+            .metric { box-sizing: border-box; position: relative; overflow: hidden;
+                width: 100%; min-width: min(280px, 100%); max-width: 360px; padding: 14px 16px 16px;
+                border-radius: 9px; background: var(--vscode-textCodeBlock-background, #ffffff0a); }
+            .metric-label { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+            .metric-label svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.2; }
+            .metric-value { display: flex; align-items: baseline; gap: 5px; color: var(--vscode-descriptionForeground); }
+            .metric-value > strong { color: var(--vscode-foreground); font-size: 18px; }
+            .celebration { margin-left: 2px; }
+            .metric-value i { align-self: stretch; border-left: 1px solid var(--vscode-widget-border, #ffffff25); margin: 0 5px; }
+            .metric-line { position: absolute; left: 0; bottom: 0; width: 100%; height: 3px; }
+            .runtime-metric .metric-line rect { fill: #2cbb5d; }
+            .memory-metric .metric-line rect { fill: #58a6ff; }
             [role=tablist] { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
             button { border: 0; border-radius: 7px; padding: 8px 14px; background: transparent;
                 color: var(--vscode-descriptionForeground); font: inherit; cursor: pointer; }
@@ -166,6 +215,7 @@ export function renderTestRun(run: ITestRun): string {
         </style></head><body>
         <header><h2 class="${statusClass}">${escapeHtml(run.status)}</h2><span class="runtime">${submission && run.passed !== undefined && run.total !== undefined ?
             `${run.passed} / ${run.total} testcases passed` : `Runtime: ${escapeHtml(runtime || "Not available")}`}</span></header>
+        ${metrics}
         ${run.errors.length ? box("Error", run.errors.join("\n")) : ""}
         ${cases.length ? `${submission ? "" : `<div role="tablist" aria-label="Test cases">${tabs}</div>`}${panels}` : ""}
         ${run.stdout && !run.stdoutByCase?.length ?

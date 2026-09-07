@@ -59,6 +59,7 @@ const submission = {...base, source: 'submission', passed: 59, total: 110,
   comparison: '0'};
 assert.deepStrictEqual(parseTestRun(encode(submission)), submission);
 assert.strictEqual(parseTestRun(encode({...submission, passed: 111})), undefined);
+assert.strictEqual(parseTestRun(encode({...submission, runtimePercentile: 101})), undefined);
 const submissionHtml = renderTestRun(submission);
 assert(submissionHtml.includes('59 / 110 testcases passed'));
 assert(submissionHtml.includes('Use Testcase'));
@@ -128,6 +129,7 @@ const submitted = context.formatResult({run_success: true, status_msg: 'Wrong An
   submission_id: '12345', input: '"can\'t"', code_output: '742540726', expected_output: '97915677',
   total_correct: 59, total_testcases: 110});
 const submitProblem = {fid: '115', templateMeta: {params: [{name: 's'}]}};
+let submissionResult = submitted;
 vm.runInNewContext(submitSource, {Buffer, module: submitModule, require(name) {
   if (name === 'util') return require('util');
   if (name === 'lodash') return cliRequire('lodash');
@@ -136,7 +138,7 @@ vm.runInNewContext(submitSource, {Buffer, module: submitModule, require(name) {
   if (name === '../chalk') return {yellow: text => text};
   if (name === '../log') return {info: line => submitLogs.push(line), warn() {}, fail: error => {throw error;}, fatal: error => {throw error;}};
   if (name === '../core') return {getProblem: (_id, _translation, cb) => cb(null, submitProblem),
-    submitProblem: (_problem, cb) => cb(null, [submitted]), updateProblem() {}};
+    submitProblem: (_problem, cb) => cb(null, [submissionResult]), updateProblem() {}};
   if (name === '../session') return {updateStat() {}};
   throw new Error(name);
 }});
@@ -152,6 +154,38 @@ assert.deepStrictEqual(submitPayload.expected, ['97915677']);
 submitLogs.length = 0;
 submitModule.exports.handler({filename: 'solution.rs', webview: false});
 assert.strictEqual(parseTestRun(submitLogs.join('\n')), undefined);
+submissionResult = context.formatResult({run_success: true, status_msg: 'Accepted', status_runtime: '0 ms', status_memory: '2.14 MB',
+  runtime_percentile: 100, memory_percentile: 57.14, lang: 'rust', submission_id: '67890',
+  total_correct: 110, total_testcases: 110});
+submitLogs.length = 0;
+submitModule.exports.handler({filename: 'solution.rs', webview: true});
+const acceptedPayload = parseTestRun(submitLogs.join('\n'));
+assert.strictEqual(acceptedPayload.status, 'Accepted');
+assert.strictEqual(acceptedPayload.runtime, '0 ms');
+assert.strictEqual(acceptedPayload.memory, '2.14 MB');
+assert.strictEqual(acceptedPayload.runtimePercentile, 100);
+assert.strictEqual(acceptedPayload.memoryPercentile, 57.14);
+assert.strictEqual(acceptedPayload.language, 'rust');
+const acceptedHtml = renderTestRun(acceptedPayload);
+assert(acceptedHtml.includes('110 / 110 testcases passed'));
+assert(acceptedHtml.includes('Runtime'));
+assert(acceptedHtml.includes('Memory'));
+assert(acceptedHtml.includes('Beats <strong>100.00%</strong>'));
+assert(acceptedHtml.includes('Beats <strong>57.14%</strong>'));
+assert(acceptedHtml.includes('class="metric runtime-metric"'));
+assert(acceptedHtml.includes('class="metric memory-metric"'));
+assert(acceptedHtml.includes('max-width: 360px'));
+assert(acceptedHtml.includes('min(280px, 100%)'));
+assert(acceptedHtml.includes('<rect width="100" height="3"/>'));
+assert(acceptedHtml.includes('<rect width="57.14" height="3"/>'));
+assert.strictEqual((acceptedHtml.match(/&#127881;/g) || []).length, 1);
+assert(!acceptedHtml.includes('Use Testcase'));
+assert(!acceptedHtml.includes('role="tablist"'));
+const zeroHtml = renderTestRun({...acceptedPayload, runtimePercentile: 0});
+assert(zeroHtml.includes('Beats <strong>0.00%</strong>'));
+assert(zeroHtml.includes('<rect width="0" height="3"/>'));
+assert(!renderTestRun({...acceptedPayload, runtimePercentile: 75, memoryPercentile: 75}).includes('&#127881;'));
+assert.strictEqual((renderTestRun({...acceptedPayload, runtimePercentile: 75.01, memoryPercentile: 99}).match(/&#127881;/g) || []).length, 2);
 
 const executed = [];
 const providerModule = {exports: {}};

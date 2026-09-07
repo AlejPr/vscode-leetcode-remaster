@@ -82,6 +82,29 @@ cmd.handler = function(argv) {
           else
             return log.warn('Failed to get memory percentile.');
         })();
+        if (argv.webview) {
+          const payload = {
+            version: 1,
+            source: 'submission',
+            status: result.state,
+            runtime: String(result.runtime || ''),
+            memory: String(result.memory || ''),
+            runtimePercentile: typeof result.runtime_percentile === 'number' ? result.runtime_percentile : null,
+            memoryPercentile: typeof result.memory_percentile === 'number' ? result.memory_percentile : null,
+            language: String(result.lang || problem.lang || ''),
+            passed: result.passed,
+            total: result.total,
+            input: '',
+            metadata: problem.templateMeta || {},
+            outputs: [],
+            expected: [],
+            comparison: '',
+            correct: true,
+            errors: [],
+            stdout: ''
+          };
+          log.info('LEETCODE_TEST_RESULT:' + Buffer.from(JSON.stringify(payload), 'utf8').toString('base64'));
+        }
 
         // core.getSubmission({id: result.id}, function(e, submission) {
         //   if (e || !submission || !submission.distributionChart)
